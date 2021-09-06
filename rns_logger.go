@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -14,9 +14,10 @@ func getCurrent() string {
 	resp, err := http.Get("https://nowyswiat.online/dev/current.txt")
 	if err != nil {
 		fmt.Println(err)
+		os.Exit(1)
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
+	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -37,7 +38,7 @@ func main() {
 	}
 	defer file.Close()
 
-	ticker := time.NewTicker(time.Duration(*interval)*time.Second)
+	ticker := time.NewTicker(time.Duration(*interval) * time.Second)
 	defer ticker.Stop()
 	done := make(chan bool)
 	go func() {
@@ -45,10 +46,15 @@ func main() {
 		done <- true
 	}()
 	previous := ""
+	current := getCurrent()
+	if current != "Radio Nowy Świat - Pion i poziom!" && current != previous {
+		previous = current
+		fmt.Fprintln(file, time.Now().Format(time.Stamp), current)
+	}
 	for {
 		select {
 		case t := <-ticker.C:
-			current := getCurrent()
+			current = getCurrent()
 			if current != "Radio Nowy Świat - Pion i poziom!" && current != previous {
 				previous = current
 				fmt.Fprintln(file, t.Format(time.Stamp), current)
