@@ -17,7 +17,12 @@ func getCurrent() string {
 	if err != nil {
 		fmt.Println(err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		err := resp.Body.Close()
+		if err != nil {
+			fmt.Println(err)
+		}
+	}()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Println(err)
@@ -28,8 +33,8 @@ func getCurrent() string {
 func durationGraph(duration time.Duration) string {
 	m := duration.Truncate(time.Minute)
 	minutes := int(math.Round(m.Minutes()))
-	tenSeconds := int(math.Round(((duration - m).Round(time.Second*10).Seconds() / 10)))
-	return strings.Repeat("#", minutes) + strings.Repeat(".", tenSeconds)
+	tenSeconds := int(math.Round((duration - m).Round(time.Second*10).Seconds() / 10))
+	return strings.Repeat("#", minutes) + strings.Repeat(":", tenSeconds/2) + strings.Repeat(".", tenSeconds%2)
 }
 
 func main() {
@@ -48,7 +53,12 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer file.Close()
+	defer func() {
+		err := file.Close()
+		if err != nil {
+			log.Fatal(err)
+		}
+	}()
 
 	ticker := time.NewTicker(time.Duration(*interval) * time.Second)
 	defer ticker.Stop()
@@ -61,9 +71,15 @@ func main() {
 	current := getCurrent()
 	previous := current
 	if current != noTrack {
-		fmt.Fprintln(file, time.Now().Format(time.Stamp), current)
+		_, err = fmt.Fprintln(file, time.Now().Format(time.Stamp), current)
+		if err != nil {
+			fmt.Println(err)
+		}
 	} else if !onlyTrackNames {
-		fmt.Fprint(file, time.Now().Format(time.Stamp))
+		_, err = fmt.Fprint(file, time.Now().Format(time.Stamp))
+		if err != nil {
+			fmt.Println(err)
+		}
 	}
 	for {
 		select {
@@ -72,20 +88,32 @@ func main() {
 			if current != previous {
 				if previous == noTrack && !onlyTrackNames {
 					d := t.Sub(prevt)
-					fmt.Fprintln(file, "", d.Round(time.Second), durationGraph(d))
+					_, err = fmt.Fprintln(file, "", d.Round(time.Second), durationGraph(d))
+					if err != nil {
+						fmt.Println(err)
+					}
 				}
 				previous = current
 				prevt = t
 				if current != noTrack {
-					fmt.Fprintln(file, t.Format(time.Stamp), current)
+					_, err = fmt.Fprintln(file, t.Format(time.Stamp), current)
+					if err != nil {
+						fmt.Println(err)
+					}
 				} else if !onlyTrackNames {
-					fmt.Fprint(file, t.Format(time.Stamp))
+					_, err = fmt.Fprint(file, t.Format(time.Stamp))
+					if err != nil {
+						fmt.Println(err)
+					}
 				}
 			}
 		case <-done:
 			if previous == noTrack && !onlyTrackNames {
 				d := time.Now().Sub(prevt)
-				fmt.Fprintln(file, "", d.Round(time.Second), durationGraph(d))
+				_, err = fmt.Fprintln(file, "", d.Round(time.Second), durationGraph(d))
+				if err != nil {
+					log.Fatal(err)
+				}
 			}
 			return
 		}
