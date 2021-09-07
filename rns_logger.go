@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -16,7 +16,7 @@ func getCurrent() string {
 		fmt.Println(err)
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
+	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -26,7 +26,9 @@ func getCurrent() string {
 func main() {
 	duration := flag.Int("dur", 3600, "duration of logging")
 	interval := flag.Int("i", 2, "interval between downloads")
+	names := flag.Bool("names", false, "record only track names")
 	flag.Parse()
+	onlyTrackNames := *names
 	if flag.NArg() != 1 {
 		fmt.Println("Please supply non option parameter = output filename")
 	}
@@ -37,7 +39,7 @@ func main() {
 	}
 	defer file.Close()
 
-	ticker := time.NewTicker(time.Duration(*interval)*time.Second)
+	ticker := time.NewTicker(time.Duration(*interval) * time.Second)
 	defer ticker.Stop()
 	done := make(chan bool)
 	go func() {
@@ -45,15 +47,32 @@ func main() {
 		done <- true
 	}()
 	previous := ""
+	prevt := time.Now()
+	if err != nil {
+		fmt.Println(err)
+	}
 	for {
 		select {
 		case t := <-ticker.C:
 			current := getCurrent()
-			if current != "Radio Nowy Świat - Pion i poziom!" && current != previous {
+			if current != previous {
+				if previous == "Radio Nowy Świat - Pion i poziom!" && !onlyTrackNames {
+					duration := t.Sub(prevt)
+					fmt.Fprintln(file, "", duration.Round(time.Second))
+				}
 				previous = current
-				fmt.Fprintln(file, t.Format(time.Stamp), current)
+				prevt = t
+				if current != "Radio Nowy Świat - Pion i poziom!" {
+					fmt.Fprintln(file, t.Format(time.Stamp), current)
+				} else {
+					fmt.Fprint(file, t.Format(time.Stamp))
+				}
 			}
 		case <-done:
+			if previous == "Radio Nowy Świat - Pion i poziom!" && !onlyTrackNames {
+				duration := time.Now().Sub(prevt)
+				fmt.Fprintln(file, "", duration.Round(time.Second))
+			}
 			return
 		}
 	}
