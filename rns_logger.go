@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -23,7 +25,16 @@ func getCurrent() string {
 	return string(body)
 }
 
+func durationGraph(duration time.Duration) string {
+	m := duration.Truncate(time.Minute)
+	minutes := int(math.Round(m.Minutes()))
+	tenSeconds := int(math.Round(((duration - m).Round(time.Second*10).Seconds() / 10)))
+	return strings.Repeat("#", minutes) + strings.Repeat(".", tenSeconds)
+}
+
 func main() {
+	noTrack := "Radio Nowy Świat - Pion i poziom!"
+
 	duration := flag.Int("dur", 3600, "duration of logging")
 	interval := flag.Int("i", 2, "interval between downloads")
 	names := flag.Bool("names", false, "record only track names")
@@ -46,32 +57,35 @@ func main() {
 		time.Sleep(time.Duration(*duration) * time.Second)
 		done <- true
 	}()
-	previous := ""
 	prevt := time.Now()
-	if err != nil {
-		fmt.Println(err)
+	current := getCurrent()
+	previous := current
+	if current != noTrack {
+		fmt.Fprintln(file, time.Now().Format(time.Stamp), current)
+	} else if !onlyTrackNames {
+		fmt.Fprint(file, time.Now().Format(time.Stamp))
 	}
 	for {
 		select {
 		case t := <-ticker.C:
-			current := getCurrent()
+			current = getCurrent()
 			if current != previous {
-				if previous == "Radio Nowy Świat - Pion i poziom!" && !onlyTrackNames {
-					duration := t.Sub(prevt)
-					fmt.Fprintln(file, "", duration.Round(time.Second))
+				if previous == noTrack && !onlyTrackNames {
+					d := t.Sub(prevt)
+					fmt.Fprintln(file, "", d.Round(time.Second), durationGraph(d))
 				}
 				previous = current
 				prevt = t
-				if current != "Radio Nowy Świat - Pion i poziom!" {
+				if current != noTrack {
 					fmt.Fprintln(file, t.Format(time.Stamp), current)
-				} else {
+				} else if !onlyTrackNames {
 					fmt.Fprint(file, t.Format(time.Stamp))
 				}
 			}
 		case <-done:
-			if previous == "Radio Nowy Świat - Pion i poziom!" && !onlyTrackNames {
-				duration := time.Now().Sub(prevt)
-				fmt.Fprintln(file, "", duration.Round(time.Second))
+			if previous == noTrack && !onlyTrackNames {
+				d := time.Now().Sub(prevt)
+				fmt.Fprintln(file, "", d.Round(time.Second), durationGraph(d))
 			}
 			return
 		}
